@@ -1,7 +1,11 @@
 {
     "debug.onTaskErrors": "debugAnyway",
     "files.associations": {
-        "stdbool.h": "c"
+        "stdbool.h": "c",
+        "stdint.h": "c",
+        "idt.h": "c",
+        "interrupt.h": "c",
+        "string.h": "c"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/gcc",
 }
