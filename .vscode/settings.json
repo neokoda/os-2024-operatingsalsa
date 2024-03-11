@@ -5,7 +5,12 @@
         "stdint.h": "c",
         "idt.h": "c",
         "interrupt.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "gdt.h": "c",
+        "portio.h": "c",
+        "framebuffer.h": "c",
+        "stdio.h": "c",
+        "kernel-entrypoint.h": "c"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/gcc",
 }
