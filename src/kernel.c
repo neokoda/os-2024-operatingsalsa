@@ -2,9 +2,9 @@
 #include <stdbool.h>
 #include "header/cpu/gdt.h"
 #include "header/kernel-entrypoint.h"
-#include "header/text/framebuffer.h"
-#include "header/cpu/interrupt.h"
+#include "header/driver/framebuffer.h"
 #include "header/cpu/idt.h"
+#include "header/cpu/interrupt.h"
 #include "header/driver/keyboard.h"
 
 void kernel_setup(void) {
@@ -20,10 +20,6 @@ void kernel_setup(void) {
     while (true) {
          char c;
          get_keyboard_buffer(&c);
-         framebuffer_write(0, col++, c, 0xF, 0);
-        //  if (c != 0) {
-        //     col++;
-        // }
+         if (c) framebuffer_write(0, col++, c, 0xF, 0);
     }
 }
-
