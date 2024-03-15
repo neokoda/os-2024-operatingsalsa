@@ -24,7 +24,7 @@ build: iso kernel
 clean:
 	@rm -rf *.o *.iso $(OUTPUT_FOLDER)/kernel
 
-kernel: gdt framebuffer interrupt keyboard
+kernel: gdt framebuffer interrupt keyboard stdlib
 	@$(ASM) $(AFLAGS) $(SOURCE_FOLDER)/kernel-entrypoint.s -o $(OUTPUT_FOLDER)/kernel-entrypoint.o
 	@$(CC) $(CFLAGS) $(SOURCE_FOLDER)/kernel.c -o $(OUTPUT_FOLDER)/kernel.o
 	@$(LIN) $(LFLAGS) bin/*.o -o $(OUTPUT_FOLDER)/kernel
@@ -48,6 +48,9 @@ iso: kernel
 		$(OUTPUT_FOLDER)/iso
 	@rm -r $(OUTPUT_FOLDER)/iso
 	
+stdlib:
+	@$(CC) $(CFLAGS) $(SOURCE_FOLDER)/stdlib/string.c -o $(OUTPUT_FOLDER)/string.o
+
 gdt:
 	@$(CC) $(CFLAGS) $(SOURCE_FOLDER)/gdt.c -o $(OUTPUT_FOLDER)/gdt.o
 

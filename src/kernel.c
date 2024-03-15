@@ -20,10 +20,10 @@ void kernel_setup(void) {
     while (true) {
          char c;
          get_keyboard_buffer(&c);
-         framebuffer_write(0, col, c, 0xF, 0);
-         if (c != 0) {
-            col++;
-        }
+         framebuffer_write(0, col++, c, 0xF, 0);
+        //  if (c != 0) {
+        //     col++;
+        // }
     }
 }
 
