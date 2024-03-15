@@ -7,6 +7,7 @@ CC            = gcc
 SOURCE_FOLDER = src
 OUTPUT_FOLDER = bin
 ISO_NAME      = os2024
+DISK_NAME      = storage
 
 # Flags
 WARNING_CFLAG = -Wall -Wextra -Werror
@@ -19,12 +20,13 @@ LFLAGS        = -T $(SOURCE_FOLDER)/linker.ld -melf_i386
 
 run: all
 	@qemu-system-i386 -s -cdrom $(OUTPUT_FOLDER)/$(ISO_NAME).iso
+	@qemu-system-i386 -s -S -drive file=$(OUTPUT_FOLDER)/$(DISK_NAME).bin,format=raw,if=ide,index=0,media=disk -cdrom $(OUTPUT_FOLDER)/$(ISO_NAME).iso
 all: build
 build: iso kernel
 clean:
 	@rm -rf *.o *.iso $(OUTPUT_FOLDER)/kernel
 
-kernel: gdt framebuffer interrupt keyboard stdlib
+kernel: gdt framebuffer interrupt keyboard stdlib filesystem
 	@$(ASM) $(AFLAGS) $(SOURCE_FOLDER)/kernel-entrypoint.s -o $(OUTPUT_FOLDER)/kernel-entrypoint.o
 	@$(CC) $(CFLAGS) $(SOURCE_FOLDER)/kernel.c -o $(OUTPUT_FOLDER)/kernel.o
 	@$(LIN) $(LFLAGS) bin/*.o -o $(OUTPUT_FOLDER)/kernel
@@ -65,3 +67,10 @@ interrupt:
 
 keyboard:
 	@$(CC) $(CFLAGS) $(SOURCE_FOLDER)/keyboard.c -o $(OUTPUT_FOLDER)/keyboard.o
+
+disk:
+	@qemu-img create -f raw $(OUTPUT_FOLDER)/$(DISK_NAME).bin 4M
+
+filesystem:
+	@$(CC) $(CFLAGS) $(SOURCE_FOLDER)/disk.c -o $(OUTPUT_FOLDER)/disk.o
+	@$(CC) $(CFLAGS) $(SOURCE_FOLDER)/fat32.c -o $(OUTPUT_FOLDER)/fat32.o

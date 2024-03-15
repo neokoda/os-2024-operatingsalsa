@@ -10,7 +10,8 @@
         "portio.h": "c",
         "framebuffer.h": "c",
         "stdio.h": "c",
-        "kernel-entrypoint.h": "c"
+        "kernel-entrypoint.h": "c",
+        "keyboard.h": "c"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/gcc",
 }
