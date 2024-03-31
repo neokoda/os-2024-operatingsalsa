@@ -43,3 +43,11 @@ void *memmove(void *dest, const void *src, size_t n) {
 
     return dest;
 }
+
+int strlen(const char *str) {
+    int length = 0;
+    while (str[length] != '\0') {
+        length++;
+    }
+    return length;
+}
