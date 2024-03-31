@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdbool.h>
+#include "header/stdlib/string.h"
 #include "header/cpu/gdt.h"
 #include "header/kernel-entrypoint.h"
 #include "header/driver/framebuffer.h"
@@ -16,14 +17,30 @@ void kernel_setup(void) {
     initialize_idt();
     framebuffer_clear();
     framebuffer_set_cursor(0, 0);
+    initialize_filesystem_fat32();
 
-    // struct BlockBuffer b;
-    // for (int i = 0; i < 512; i++) b.buf[i] = i % 16;
-    // write_blocks(&b, 0, 1);
+    // struct FAT32DirectoryEntry fde;
+    struct FAT32DriverRequest request;
 
-    struct BlockBuffer b;
-    read_blocks(&b, 42, 1);
-    for (int i = 0 ; i < 128; i++) b.buf[i] = 1;
-    write_blocks(&b, 0, 1);
+    memcpy(request.name, "kano", 8); // Copy "filename" to the name array
+    memcpy(request.ext, "", 3); // Copy "txt" to the ext array
+    request.parent_cluster_number = 2;
+    request.buffer_size = 5; 
+
+    int8_t read_retval = read(request);
+
+    if (read_retval == 0) {
+        write_clusters(request.buf, 32, 1);
+    } else {
+        // if (read_retval == 1) {
+        //     write_clusters("Not a file", 32, 3);
+        // } else if (read_retval == 2) {
+        //     write_clusters("Not enough buffer size", 32, 3);
+        // } else if (read_retval == 3) {
+        //     write_clusters("File not kontol", 32, 3);
+        // }
+    } 
+
+
     while (true);
 }

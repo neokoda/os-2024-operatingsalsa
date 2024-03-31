@@ -121,7 +121,7 @@ struct FAT32DriverState {
     struct ClusterBuffer            cluster_buf;
 } __attribute__((packed));
 
-/**
+/*
  * FAT32DriverRequest - Request for Driver CRUD operation
  * 
  * @param buf                   Pointer pointing to buffer
