@@ -21,17 +21,18 @@ void kernel_setup(void) {
 
     struct FAT32DriverRequest request;
 
-    memcpy(request.name, "Neo", 8); // Copy "filename" to the name array
+    memcpy(request.name, "empty_fo", 8); // Copy "filename" to the name array
     memcpy(request.ext, "", 3); // Copy "txt" to the ext array
     request.parent_cluster_number = 2;
-    request.buffer_size = 2080; 
+    request.buffer_size = 0; 
 
-    memset(request.buf, 'n', 2050);
+    // memset(request.buf, 'n', 2050);
     // // int8_t read_retval = read(request);
     // read_directory(request);
     write(request);
+    int8_t retval = delete(request);
 
-    // write_clusters(request.buf, 32, 3);
+    write_clusters(&retval, 32, 3);
 
     // write_clusters("fef", 32, 1);
     // if (read_retval == 0) {
