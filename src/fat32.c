@@ -37,16 +37,30 @@ void insert_directory(struct FAT32DirectoryTable* dir_table, int i, char* name, 
 }
 
 void create_fat32(void) {
+    char* empty_cluster[CLUSTER_SIZE];
+    memset(empty_cluster, 0, CLUSTER_SIZE);
+    for (int i = 0; i < CLUSTER_MAP_SIZE; i++) {
+        write_clusters(empty_cluster, i, 1);
+    }
+
     void* boot_sector_ptr = (void*) BOOT_SECTOR;
     memcpy(boot_sector_ptr, fs_signature, BLOCK_SIZE);
+
     fat32_driver_state.fat_table.cluster_map[0] = CLUSTER_0_VALUE;
     fat32_driver_state.fat_table.cluster_map[1] = CLUSTER_1_VALUE;
     fat32_driver_state.fat_table.cluster_map[2] = FAT32_FAT_END_OF_FILE;
     for (int i = 3; i < CLUSTER_MAP_SIZE; i++) {
         fat32_driver_state.fat_table.cluster_map[i] = FAT32_FAT_EMPTY_ENTRY;
     }
-    write_clusters(boot_sector_ptr, 0, 1);
+
+    write_blocks(boot_sector_ptr, 0, 1);
     write_clusters(&fat32_driver_state.fat_table, 1, 1);
+
+    struct FAT32DirectoryTable root;
+    insert_directory(&root, 0, "root", "", ATTR_SUBDIRECTORY, UATTR_NOT_EMPTY, 2, 0);
+    insert_directory(&root, 1, "..", "", ATTR_SUBDIRECTORY, UATTR_NOT_EMPTY, 2, 0);
+
+    write_clusters(&root, 2, 1);
 }
 
 bool is_empty_storage(void) {
@@ -108,7 +122,7 @@ uint32_t bytes_to_cluster(uint32_t filesize) {
 int first_fit(uint32_t clusters_needed) {
     uint32_t start_idx = 3;
     while (start_idx < CLUSTER_MAP_SIZE) {
-        while (fat32_driver_state.fat_table.cluster_map[start_idx] != FAT32_FAT_EMPTY_ENTRY && start_idx < CLUSTER_MAP_SIZE) {
+        while (start_idx < CLUSTER_MAP_SIZE && fat32_driver_state.fat_table.cluster_map[start_idx] != FAT32_FAT_EMPTY_ENTRY) {
             start_idx++;
         }
         if (start_idx >= CLUSTER_MAP_SIZE) {
@@ -117,7 +131,7 @@ int first_fit(uint32_t clusters_needed) {
 
         uint32_t empty_count = 0;
         uint32_t search_idx = start_idx;
-        while (fat32_driver_state.fat_table.cluster_map[search_idx] == FAT32_FAT_EMPTY_ENTRY && search_idx < CLUSTER_MAP_SIZE) {
+        while (search_idx < CLUSTER_MAP_SIZE && fat32_driver_state.fat_table.cluster_map[search_idx] == FAT32_FAT_EMPTY_ENTRY) {
             empty_count++;
             search_idx++;
         }

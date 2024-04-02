@@ -221,6 +221,13 @@ void read_clusters(void *ptr, uint32_t cluster_number, uint8_t cluster_count);
  */
 int8_t read_directory(struct FAT32DriverRequest request);
 
+/**
+ * Get minimum amount of clusters needed for bytes
+ *
+ * @param filesize Size in bytes
+ * @return Amount of clusters needed
+ */
+uint32_t bytes_to_cluster(uint32_t filesize);
 
 /**
  * FAT32 read, read a file from file system.

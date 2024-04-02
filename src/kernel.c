@@ -75,17 +75,21 @@ void kernel_setup(void) {
     // }
 
     // testing write
-    memcpy(request.name, "neofile", 8); 
-    memcpy(request.ext, "txt", 3);
+    memcpy(request.name, "f", 8); 
+    memcpy(request.ext, "", 3);
     request.parent_cluster_number = 2;
-    request.buffer_size = 4100; 
-    memset(request.buf, 'v', 4100);
+    request.buffer_size = 500;
+    char* string_to_write = "Neo Koda";
+    int l = strlen(string_to_write);
+    memset(request.buf, 1, bytes_to_cluster(l));
+    // write_clusters(request.buf, 32, 3);
+    memcpy(request.buf, "Muhammad Neo Cicero Koda", strlen(string_to_write));
 
-    int8_t write_retval = write(request);
-    // read_directory(request);
+    // int8_t write_retval = write(request);
+    write(request);
 
     // write_clusters(request.buf, 32, 1);
-    write_clusters(&write_retval, 32, 3);
+    // write_clusters(&write_retval, 32, 3);
 
     // if (read_retval == 0) {
     //     write_clusters(request.buf, 32, 3);
