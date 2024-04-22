@@ -25,7 +25,7 @@ build: iso kernel
 clean:
 	@rm -rf *.o *.iso $(OUTPUT_FOLDER)/kernel
 
-kernel: gdt framebuffer interrupt keyboard stdlib filesystem memory inserter
+kernel: gdt framebuffer interrupt keyboard stdlib filesystem memory inserter user-shell insert-shell
 	@$(ASM) $(AFLAGS) $(SOURCE_FOLDER)/kernel-entrypoint.s -o $(OUTPUT_FOLDER)/kernel-entrypoint.o
 	@$(CC) $(CFLAGS) $(SOURCE_FOLDER)/kernel.c -o $(OUTPUT_FOLDER)/kernel.o
 	@$(LIN) $(LFLAGS) bin/*.o -o $(OUTPUT_FOLDER)/kernel
@@ -83,3 +83,16 @@ inserter:
 		$(SOURCE_FOLDER)/filesystem/fat32.c \
 		$(SOURCE_FOLDER)/external/external-inserter.c \
 		-o $(OUTPUT_FOLDER)/inserter
+
+user-shell:
+	@$(ASM) $(AFLAGS) $(SOURCE_FOLDER)/crt0.s -o crt0.o
+	@$(CC)  $(CFLAGS) -fno-pie $(SOURCE_FOLDER)/user-shell.c -o user-shell.o
+	@$(LIN) -T $(SOURCE_FOLDER)/user-linker.ld -melf_i386 --oformat=binary \
+		crt0.o user-shell.o -o $(OUTPUT_FOLDER)/shell
+	@echo Linking object shell object files and generate flat binary...
+	@size --target=binary $(OUTPUT_FOLDER)/shell
+	@rm -f *.o
+
+insert-shell: inserter user-shell
+	@echo "Inserting shell into root directory..."
+	@cd $(OUTPUT_FOLDER); ./inserter shell 2 $(DISK_NAME).bin
