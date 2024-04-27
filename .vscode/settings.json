@@ -13,7 +13,8 @@
         "kernel-entrypoint.h": "c",
         "keyboard.h": "c",
         "stddef.h": "c",
-        "fat32.h": "c"
+        "fat32.h": "c",
+        "disk.h": "c"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/gcc",
 }
