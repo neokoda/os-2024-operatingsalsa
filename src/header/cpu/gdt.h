@@ -41,14 +41,13 @@ struct SegmentDescriptor {
     uint8_t non_system : 1;
     uint8_t privilege : 2; // descriptor privilege level; 0 = most privilege level; to control access to the segment
     uint8_t valid_bit : 1; // indicates whether the segment is present in memory or not
-    uint8_t limit_high : 4;
+    uint8_t segment_high : 4;
     uint8_t avl : 1;
     uint8_t long_mode : 1;
     uint8_t opr_32_bit : 1;
     uint8_t granularity : 1; // granularity flag, when g is clear : segment limit interpreted in byte units, when g is set : segment limit interpreted in 4-KByte units
     uint8_t base_high;
 
-    uint16_t segment_high;
 } __attribute__((packed));
 
 /**
