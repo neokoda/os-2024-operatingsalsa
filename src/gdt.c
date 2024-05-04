@@ -12,7 +12,7 @@ static struct GlobalDescriptorTable global_descriptor_table = {
         {0xFFFF, 0, 0, 0x2, 1, 0, 1, 0xF, 0, 0, 1, 1, 0}, // Kernel Data Descriptor
         // User Code Descriptor
         {
-            .segment_high      = 0,
+            .segment_high      = 0xF,
             .segment_low       = 0xFFFF,
             .base_high         = 0,
             .base_mid          = 0,
@@ -27,7 +27,7 @@ static struct GlobalDescriptorTable global_descriptor_table = {
         },
         // User Data Descriptor
         {
-            .segment_high      = 0,
+            .segment_high      = 0xF,
             .segment_low       = 0xFFFF,
             .base_high         = 0,
             .base_mid          = 0,
