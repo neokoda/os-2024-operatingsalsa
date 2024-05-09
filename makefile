@@ -7,7 +7,7 @@ CC            = gcc
 SOURCE_FOLDER = src
 OUTPUT_FOLDER = bin
 ISO_NAME      = os2024
-DISK_NAME     = sample-image
+DISK_NAME     = storage
 
 # Flags
 WARNING_CFLAG = -Wall -Wextra -Werror
@@ -23,9 +23,9 @@ run: all
 all: build
 build: iso kernel
 clean:
-	@rm -rf *.o *.iso $(OUTPUT_FOLDER)/kernel
+	@rm -rf *.o *.iso $(OUTPUT_FOLDER)/*
 
-kernel: gdt framebuffer interrupt keyboard stdlib filesystem memory inserter user-shell insert-shell
+kernel: gdt framebuffer interrupt keyboard stdlib filesystem memory
 	@$(ASM) $(AFLAGS) $(SOURCE_FOLDER)/kernel-entrypoint.s -o $(OUTPUT_FOLDER)/kernel-entrypoint.o
 	@$(CC) $(CFLAGS) $(SOURCE_FOLDER)/kernel.c -o $(OUTPUT_FOLDER)/kernel.o
 	@$(LIN) $(LFLAGS) bin/*.o -o $(OUTPUT_FOLDER)/kernel

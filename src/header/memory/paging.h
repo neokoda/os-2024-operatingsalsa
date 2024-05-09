@@ -57,8 +57,8 @@ struct PageDirectoryEntry {
     // TODO : Continue, Use uint16_t + bitfield here, Do not use uint8_t
     uint16_t ignored        : 3;
     uint16_t pat            : 1;
-    uint16_t physical_address  : 4;
-    uint16_t reserved_2     : 5;  // 5 atau 1?
+    uint16_t physical_address  : 8;
+    uint16_t reserved_2     : 1;  // 5 atau 1?
     uint16_t lower_address  : 10;
 } __attribute__((packed));
 

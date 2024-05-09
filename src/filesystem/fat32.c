@@ -43,7 +43,7 @@ void create_fat32(void) {
         write_clusters(empty_cluster, i, 1);
     }
 
-    void* boot_sector_ptr = (void*) BOOT_SECTOR;
+    char* boot_sector_ptr[BLOCK_SIZE];
     memcpy(boot_sector_ptr, fs_signature, BLOCK_SIZE);
 
     fat32_driver_state.fat_table.cluster_map[0] = CLUSTER_0_VALUE;
