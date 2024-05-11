@@ -13,7 +13,10 @@ SECTIONS {
     {
         *(.data)
     }
-
+    .bss ALIGN(4): { /* 9 May Edit: Fixes for static storage variables */
+        *(COMMON)
+        *(.bss)
+    }
     .rodata ALIGN(4):
     {
         *(.rodata*)
