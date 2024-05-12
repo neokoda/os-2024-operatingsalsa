@@ -201,7 +201,7 @@ int8_t read_directory(struct FAT32DriverRequest request) {
 
 int8_t write(struct FAT32DriverRequest request) {
     if (!is_valid_parent_cluster(request.parent_cluster_number)) {
-        return -1;
+        return 2;
     }
     struct FAT32DirectoryTable parent_folder;
     read_clusters(parent_folder.table, request.parent_cluster_number, 1);
@@ -245,7 +245,7 @@ int8_t write(struct FAT32DriverRequest request) {
                     while (parent_folder.table[i].user_attribute == UATTR_NOT_EMPTY) {
                         i++;
                     }
-                    insert_directory(&parent_folder, i, request.name, "", 0, UATTR_NOT_EMPTY, cluster_idx, request.buffer_size);
+                    insert_directory(&parent_folder, i, request.name, request.ext, 0, UATTR_NOT_EMPTY, cluster_idx, request.buffer_size);
                     write_clusters(parent_folder.table, request.parent_cluster_number, 1);
 
                     for (int i = cluster_idx; i < cluster_idx + clusters_needed; i++) {
