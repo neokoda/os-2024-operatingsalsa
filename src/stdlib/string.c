@@ -51,3 +51,38 @@ int strlen(const char *str) {
     }
     return length;
 }
+
+void getWord(const char* str, uint16_t wordIdx, char* buf) {
+    int counter = 0;
+    int idx = -1;
+    int n = strlen(str);
+
+    for (int i = 0; i < n; i++) {
+        if (i == 0 && str[i] != ' ') {
+            counter++;
+            if (wordIdx+1 == counter) {
+                idx = i;
+                break;
+            }
+        } else if (str[i] == ' ' && str[i+1] != ' ') {
+            counter++;
+            if (wordIdx+1 == counter) {
+                idx = i+1;
+                break;
+            }
+        }
+    }
+
+    if (idx == -1) {
+        buf[0] = '\0';
+        return;
+    } else {
+        int i = 0;
+        while (str[idx] != ' ' && idx < n) {
+            buf[i] = str[idx];
+            i++;
+            idx++;
+        }
+        buf[i] = '\0';
+    }
+}
