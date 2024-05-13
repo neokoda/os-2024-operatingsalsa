@@ -2,7 +2,9 @@
 #include "header/stdlib/string.h"
 #include "header/filesystem/fat32.h"
 
+// stores directorytable of current workiing directory
 static struct FAT32DirectoryTable current_folder;
+// displays current working directory, initially /root/ 
 char cwd[80] = "/root/";
 
 void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
@@ -15,16 +17,19 @@ void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
     __asm__ volatile("int $0x30");
 }
 
+// used for processing user input
 bool strings_equal(char* arg1, char* arg2) {
     return (strlen(arg1) == strlen(arg2) && memcmp(arg1, arg2, strlen(arg2)) == 0);
 }
 
+// prints out cwd to terminal every line
 void print_terminal_cwd(char* cwd) {
     char* terminal = "operatingsalsa:";
     syscall(6, (uint32_t) terminal, strlen(terminal), 2);
     syscall(6, (uint32_t) cwd, strlen(cwd), 1);
 }
 
+// gets user input and stores it in command
 void get_command(char* command) {
     int i = 0;
     while (true) {
@@ -44,6 +49,7 @@ void get_command(char* command) {
     command[i] = '\0';
 }
 
+// clears command and argument buffers
 void clear_cmd_args(char* command, char* arg1, char* arg2) {
     for (int i = 0; i < 80; i++) {
         command[i] = '\0';
@@ -52,6 +58,7 @@ void clear_cmd_args(char* command, char* arg1, char* arg2) {
     }
 }
 
+// parses input from command to first and second argument
 void parse_arguments(char* command, char* arg1, char* arg2) {
     int i;
     int j = 0;
@@ -73,10 +80,12 @@ void parse_arguments(char* command, char* arg1, char* arg2) {
     }
 }
 
+// clears current_folder
 void clear_current_folder() {
     memset(&current_folder, 0, sizeof(struct FAT32DirectoryTable));
 }
 
+// change directory
 void cd(char* arg2) {
     uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
     uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
@@ -136,12 +145,14 @@ void cd(char* arg2) {
     }
 }
 
+// execute command from arg1 and arg2
 void execute_command(char* arg1, char* arg2) {
     if (memcmp(arg1, "cd", 2) == 0 && strlen(arg1) == 2) {
         cd(arg2);
     }
 }
 
+// main
 int main(void) {
     struct ClusterBuffer      cl[2]   = {0};
     struct FAT32DriverRequest request = {
