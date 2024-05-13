@@ -70,37 +70,46 @@ void set_tss_kernel_current_stack(void) {
     _interrupt_tss_entry.esp0 = stack_ptr + 8; 
 }
 
-uint8_t row_now = 0;
-uint8_t length_of_terminal = 0;
-void puts(char *str, uint32_t len, uint32_t color) {
-    if (memcmp(str,"cls",3) == 0)
-    {
-        row_now = 0;
-        for (uint32_t i = 0; i < 25; i++)
-        {
-            for (uint32_t j = 0; j < 80; j++)
-            {
-                framebuffer_write(i, j, ' ', color, 0);
-            }
+int row = 0;
+int col = 0;
+void putchar(char c, uint32_t color) {
+    if (c && c != '\n' && c != '\b') {
+        framebuffer_write(row, col, c, color, 0);
+        if (col >= 80) {
+            row++;
+            col = 0;
+        } else {
+            col++;
+        }
+        framebuffer_set_cursor(row, col);
+    }
+    if (c == '\n') {
+            row++;
+            col = 0;
+            framebuffer_set_cursor(row, col);
+    }
+    if (c == '\b') {
+        col--;
+        if (col == -1) {
+            row--;
+            col = 80;
+        }
+        framebuffer_write(row, col, '\0', 15, 0);
+        framebuffer_set_cursor(row, col);
+    }
+}
+
+void puts(char* str, uint32_t count, uint32_t color) {
+    for (uint32_t i = 0; i < count; i++) {
+        if (str[i] == '\n') {
+            row++;
+            col = 0;
+        } else {
+            framebuffer_write(row, col, str[i], color, 0);
+            col++;
         }
     }
-    else
-    {
-        row_now++;
-        uint32_t col = 0;
-        for (uint32_t i = 0; i < len; i++)
-        {
-            if (str[i] == '\n'){
-                row_now ++;
-                col = 0;
-            }
-            else{
-                framebuffer_write(row_now, col, str[i], color, 0);
-                col++;
-            }
-        }
-        row_now ++;
-    }
+    framebuffer_set_cursor(row, col);
 }
 
 void syscall(struct InterruptFrame frame) {
@@ -128,6 +137,12 @@ void syscall(struct InterruptFrame frame) {
             break;
         case 4:
             get_keyboard_buffer((char*) frame.cpu.general.ebx);
+            break;
+        case 5:
+            putchar(
+                frame.cpu.general.ebx,
+                frame.cpu.general.ecx
+            );
             break;
         case 6:
             puts(

@@ -21,5 +21,9 @@ void framebuffer_write(uint8_t row, uint8_t col, char c, uint8_t fg, uint8_t bg)
 }
 
 void framebuffer_clear(void) {
-    memset(FRAMEBUFFER_MEMORY_OFFSET, 0, 2000);
+	for (int row = 0; row < 25; row++) {
+		for (int col = 0; col < 80; col++) {
+			framebuffer_write(row, col, '\0', 0xF, 0);
+		}
+	}
 }
