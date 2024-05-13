@@ -188,7 +188,7 @@ int8_t read_directory(struct FAT32DriverRequest request) {
                 uint32_t high = ((uint32_t) fat32_driver_state.dir_table_buf.table[i].cluster_high) << 16;
                 uint32_t j = (low | high);
 
-                read_clusters(request.buf, j, request.buffer_size);
+                read_clusters(request.buf, j, bytes_to_cluster(request.buffer_size));
                 return 0;
             } else {
                 return 1;

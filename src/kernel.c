@@ -22,7 +22,7 @@ void kernel_setup(void) {
     gdt_install_tss();
     set_tss_register();
 
-    // Allocate first 4 MiB virtual memory
+//     // Allocate first 4 MiB virtual memory
     paging_allocate_user_page_frame(&_paging_kernel_page_directory, (uint8_t*) 0);
 
     // Write shell into memory
@@ -31,11 +31,21 @@ void kernel_setup(void) {
         .name                  = "shell",
         .ext                   = "\0\0\0",
         .parent_cluster_number = ROOT_CLUSTER_NUMBER,
-        .buffer_size           = 0x100000,
+        .buffer_size           = 0x10000,
     };
     read(request);
 
-    // Set TSS $esp pointer and jump into shell 
+//     // struct FAT32DriverRequest root_folder_request = {
+//     //     .buf                   = (uint8_t*) 0,
+//     //     .name                  = "root",
+//     //     .ext                   = "\0\0\0",
+//     //     .parent_cluster_number = 2,
+//     //     .buffer_size           = 2048,
+//     // };
+//     // read_directory(root_folder_request);
+//     // write_clusters(request.buf, 33, 1);
+
+//     // Set TSS $esp pointer and jump into shell 
     set_tss_kernel_current_stack();
     kernel_execute_user_program((uint8_t*) 0);
 
@@ -75,28 +85,35 @@ void kernel_setup(void) {
     // }
 
     // testing read_directory
-    // struct FAT32DriverRequest request = {
+//     struct FAT32DriverRequest root_folder_request = {
+//         .buf                   = (uint8_t*) 0,
+//         .name                  = "root",
+//         .ext                   = "\0\0\0",
+//         .parent_cluster_number = 2,
+//         .buffer_size           = 2048,
+//     };
+//     read_directory(root_folder_request);
+//     write_clusters(root_folder_request.buf, 32, 1);
+
+    // struct FAT32DriverRequest root_folder_request = {
     //     .buf                   = (uint8_t*) 0,
-    //     .name                  = "folder1",
+    //     .name                  = "root",
     //     .ext                   = "\0\0\0",
     //     .parent_cluster_number = 2,
-    //     .buffer_size           = 6000,
+    //     .buffer_size           = 2048,
     // };
 
-    // int8_t retval = read_directory(request);
+    // read_directory(root_folder_request);
 
-    // write_clusters(request.buf, 32, 3);
-
-    // while (retval == 10) {
-
-    // }
+    // write_clusters(root_folder_request.buf, 32, 3);
 
     // testing write
+    // char brainrot[894] = "! Alright, so let's break it down in a way that hits home, fam. We're talking about the lognormal distribution, a concept that Livy Dunne and the crew would vibe with, for sure. Picture this: imagine a world where everything's got a kind of natural rhythm, like baby Gronk running his routes or Kai Cenat hitting the gym. Now, the lognormal distribution is like a funky twist on that rhythm, a bit of Gyatt mixed with Adin Ross vibes, you feel me? It's all about how things pan out when you're looking at the logarithms of variables, like Skibidi Toilet's gaming stats or even Fanum Tax's stock market moves. It's like finding the sweet spot between edging, gooning, and mewing, but in the world of numbers. And when you're trying to maximize your gains or minimize your risks, knowing how to ride that lognormal wave could be your ticket to becoming the ultimate Rizzler, straight outta Ohio!";
     // struct FAT32DriverRequest request = {
     //     .buf                   = (uint8_t*) 0,
-    //     .name                  = "meong",
-    //     .ext                   = "txt",
-    //     .parent_cluster_number = 2,
+    //     .name                  = "115",
+    //     .ext                   = "pdf",
+    //     .parent_cluster_number = 5,
     //     .buffer_size           = 4097,
     // };
 
@@ -111,9 +128,9 @@ void kernel_setup(void) {
     // testing delete
     // struct FAT32DriverRequest request = {
     //     .buf                   = (uint8_t*) 0,
-    //     .name                  = "folder2",
+    //     .name                  = "115",
     //     .ext                   = "\0\0\0",
-    //     .parent_cluster_number = ROOT_CLUSTER_NUMBER,
+    //     .parent_cluster_number = 5,
     //     .buffer_size           = 0x100000,
     // };
 
