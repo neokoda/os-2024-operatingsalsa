@@ -115,23 +115,23 @@ void puts(char* str, uint32_t count, uint32_t color) {
 void syscall(struct InterruptFrame frame) {
     switch (frame.cpu.general.eax) {
         case 0:
-            *((int8_t*) frame.cpu.general.ecx) = read(
+            *((uint32_t*) frame.cpu.general.ecx) = read(
                 *(struct FAT32DriverRequest*) frame.cpu.general.ebx
             );
             break;
         case 1:
-            *((int8_t*) frame.cpu.general.ecx) = read_directory
+            *((uint32_t*) frame.cpu.general.ecx) = read_directory
             (
                 *(struct FAT32DriverRequest*) frame.cpu.general.ebx
             );
             break;
         case 2:
-            *((int8_t*) frame.cpu.general.ecx) = write(
+            *((uint32_t*) frame.cpu.general.ecx) = write(
                 *(struct FAT32DriverRequest*) frame.cpu.general.ebx
             );
             break;
         case 3:
-            *((int8_t*) frame.cpu.general.ecx) = delete(
+            *((uint32_t*) frame.cpu.general.ecx) = delete(
                 *(struct FAT32DriverRequest*) frame.cpu.general.ebx
             );
             break;
