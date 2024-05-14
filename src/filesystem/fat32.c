@@ -206,7 +206,7 @@ int8_t write(struct FAT32DriverRequest request) {
     struct FAT32DirectoryTable parent_folder;
     read_clusters(parent_folder.table, request.parent_cluster_number, 1);
 
-    for (int i = 0; i < 64; i++) {
+    for (int i = 1; i < 64; i++) {
         if ((memcmp(request.name, parent_folder.table[i].name, 8) == 0) && (memcmp(request.ext, parent_folder.table[i].ext, 3) == 0)) {
             return 1;
         }
@@ -219,6 +219,7 @@ int8_t write(struct FAT32DriverRequest request) {
         }
 
         struct FAT32DirectoryTable new_folder;
+        memset(new_folder.table, 0, sizeof(struct FAT32DirectoryTable));
         insert_directory(&new_folder, 0, request.name, "", ATTR_SUBDIRECTORY, UATTR_NOT_EMPTY, target_cluster, 0);
         insert_directory(&new_folder, 1, "..", "", ATTR_SUBDIRECTORY, UATTR_NOT_EMPTY, request.parent_cluster_number, 0);
 

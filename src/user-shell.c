@@ -81,20 +81,54 @@ void clear_current_folder() {
     memset(&current_folder, 0, sizeof(struct FAT32DirectoryTable));
 }
 
+void update_cwd_contents() {
+    uint32_t low = (uint32_t)(current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    uint32_t current_cluster = (low | high);
+    
+    struct FAT32DriverRequest current_folder_request = {
+        .buf                   = &current_folder,
+        .name                  = "",
+        .ext                   = "\0\0\0",
+        .parent_cluster_number = current_cluster,
+        .buffer_size           = 2048,
+    };
+    memcpy(current_folder_request.name, current_folder.table[0].name, 8);
+
+    syscall(1, (uint32_t) &current_folder_request, 0, 0);
+}
+
 // change directory
 void cd(char* arg2) {
-    uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
-    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
-    uint32_t current_cluster_number = (low | high);
-
+    uint32_t low, high;
     char* message;
 
-    if (current_cluster_number == ROOT_CLUSTER_NUMBER && strings_equal("..", arg2)) {
+    if (strings_equal(current_folder.table[0].name, arg2)) {
+        bool found = false;
+        for (int i = 2; i < 64; i++) {
+            if (strings_equal(current_folder.table[i].name, arg2)) {
+                if (current_folder.table[i].attribute == ATTR_SUBDIRECTORY) {
+                    low = (uint32_t)(current_folder.table[i].cluster_low);
+                    high = ((uint32_t) current_folder.table[i].cluster_high) << 16;
+                    found = true;
+                }
+            }
+        }
+        if (!found) {
+            message = "Folder not found\n";
+            syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+            return;
+        }
+    } else {
+        low = (uint32_t) (current_folder.table[0].cluster_low);
+        high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    }
+
+    uint32_t target_cluster = (low | high);
+
+    if (target_cluster == ROOT_CLUSTER_NUMBER && strings_equal("..", arg2)) {
         message = "Already in root folder\n";
         syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
-        return;
-    }
-    if (strings_equal(arg2, current_folder.table[0].name)) {
         return;
     }
 
@@ -102,7 +136,7 @@ void cd(char* arg2) {
         .buf                   = &current_folder,
         .name                  = "",
         .ext                   = "\0\0\0",
-        .parent_cluster_number = current_cluster_number,
+        .parent_cluster_number = target_cluster,
         .buffer_size           = 2048,
     };
     memcpy(child_folder_request.name, arg2, 8);
@@ -141,10 +175,106 @@ void cd(char* arg2) {
     }
 }
 
+void mkdir(char arg[80][80]) {
+    uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    uint32_t current_cluster_number = (low | high);
+
+    char* message;
+
+    int argIdx = 1;
+    while (memcmp(arg[argIdx], "", 1) != 0) {
+        struct FAT32DriverRequest child_folder_request = {
+            .buf                   = &current_folder,
+            .name                  = "",
+            .ext                   = "\0\0\0",
+            .parent_cluster_number = current_cluster_number,
+            .buffer_size           = 0,
+        };
+        memcpy(child_folder_request.name, arg[argIdx], 8);
+
+        uint32_t retcode;
+        syscall(2, (uint32_t) &child_folder_request, (uint32_t) &retcode, 0);
+
+        switch (retcode) {
+            case 0:
+                message = "Folder created\n";
+                break;
+            case 1:
+                message = "Folder already exists\n";
+                break;
+            case 2:
+                message = "Invalid parent cluster\n";
+                break;
+        }
+
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+        argIdx++;
+    }
+}
+
+// list file in a directory
+void ls() {
+    char * foldername = current_folder.table->name;
+
+    // initiate a request, do syscall
+    uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    uint32_t current_cluster_number = (low | high);
+    
+    struct FAT32DirectoryTable table = {};
+    struct FAT32DriverRequest request = {
+        .buf                   = &table,
+        .parent_cluster_number = current_cluster_number,
+        .buffer_size           = 2048,
+    };
+    memcpy(request.name, foldername, 8);
+
+    char* message;
+    uint32_t retcode;
+    // syscall to read directory
+    syscall(1, (uint32_t) &request, (uint32_t) &retcode, 0);
+
+    switch (retcode) {
+        case -1:
+            message = "An unknown error occurred\n";
+            break;
+        case 1:
+            message = "Provided argument is not a folder\n";
+            break;
+        case 2:
+            message = "Folder not found\n";
+            break;
+    }
+
+    if (retcode != 0) {
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+    } else {
+       
+        // iterate through each entry in directory table
+        for (int i = 2; i < 64; i++){
+            char * name = table.table[i].name;
+            // if entry is empty, skip
+            if (table.table[i].name[0] == 0x00){
+                continue;
+            }
+            syscall(6, (uint32_t) name, (uint32_t) strlen(name), 0xF);
+            syscall(6, (uint32_t) "\n", (uint32_t) 1, 0xF);
+        }
+    }
+}
+
 // execute command from arg1 and arg2
 void execute_command(char args[80][80]) {
     if (strings_equal(args[0], "cd")) {
         cd(args[1]);
+    } else if (strings_equal(args[0], "mkdir")) {
+        mkdir(args);
+    } else if (strings_equal(args[0], "ls")) {
+        ls();
+    } else {
+        char* message = "Command not found\n";
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
     }
 }
 
@@ -175,6 +305,7 @@ int main(void) {
 
     syscall(7, 0, 0, 0);
     while (true) {
+        update_cwd_contents();
         print_terminal_cwd(cwd);
         get_command(command);
         parse_arguments(command, args);
