@@ -50,33 +50,29 @@ void get_command(char* command) {
 }
 
 // clears command and argument buffers
-void clear_cmd_args(char* command, char* arg1, char* arg2) {
+void clear_cmd_args(char* command, char args[80][80]) {
     for (int i = 0; i < 80; i++) {
         command[i] = '\0';
-        arg1[i] = '\0';
-        arg2[i] = '\0';
+        for (int j = 0; j < 80; j++) {
+            args[i][j] = '\0';
+        }
     }
 }
 
-// parses input from command to first and second argument
-void parse_arguments(char* command, char* arg1, char* arg2) {
-    int i;
+// parses input from command to arguments
+void parse_arguments(char* command, char args[80][80]) {
+    int i = 0;
     int j = 0;
-    for (i = 0; i < strlen(command); i++) {
-        if (command[i] == ' ') {
-            break;
-        }
-        arg1[j] = command[i];
-        j++;
-    }
-    int k;
-    j = 0;
-    for (k = i + 1; k < strlen(command); k++) {
+    for (int k = 0; k < strlen(command); k++) {
         if (command[k] == ' ') {
-            break;
+            if (j != 0) {
+                i++;
+            }
+            j = 0;
+        } else {
+            args[i][j] = command[k];
+            j++;
         }
-        arg2[j] = command[k];
-        j++;
     }
 }
 
@@ -146,9 +142,9 @@ void cd(char* arg2) {
 }
 
 // execute command from arg1 and arg2
-void execute_command(char* arg1, char* arg2) {
-    if (memcmp(arg1, "cd", 2) == 0 && strlen(arg1) == 2) {
-        cd(arg2);
+void execute_command(char args[80][80]) {
+    if (strings_equal(args[0], "cd")) {
+        cd(args[1]);
     }
 }
 
@@ -175,24 +171,16 @@ int main(void) {
     syscall(1, (uint32_t) &root_folder_request, (uint32_t) &retcode, 0);
 
     char command[80];
-    char arg1[80];
-    char arg2[80];
+    char args[80][80];
 
     syscall(7, 0, 0, 0);
     while (true) {
         print_terminal_cwd(cwd);
         get_command(command);
-        parse_arguments(command, arg1, arg2);
-        execute_command(arg1, arg2);
-        clear_cmd_args(command, arg1, arg2);
+        parse_arguments(command, args);
+        execute_command(args);
+        clear_cmd_args(command, args);
     }
-
-    // while (true) {
-    //     print current working directory
-    //     get input
-    //     process input
-    //     print output
-    // }
 
     return 0;
 }
