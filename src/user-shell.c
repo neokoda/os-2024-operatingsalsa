@@ -291,6 +291,47 @@ void ls(char* arg2) {
     }
 }
 
+void mkdir(char args[80][80]) {
+    uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    uint32_t current_cluster_number = (low | high);
+
+    char* message;
+
+    int argIdx = 1;
+    while (memcmp(args[argIdx], "", 1) != 0) {
+        struct FAT32DriverRequest child_folder_request = {
+            .buf                   = &current_folder,
+            .name                  = "",
+            .ext                   = "\0\0\0",
+            .parent_cluster_number = current_cluster_number,
+            .buffer_size           = 0,
+        };
+        memcpy(child_folder_request.name, args[argIdx], 8);
+
+        uint32_t retcode;
+        syscall(2, (uint32_t) &child_folder_request, (uint32_t) &retcode, 0);
+
+        switch (retcode) {
+            case 0:
+                message = "Folder created\n";
+                break;
+            case 1:
+                message = "Folder already exists\n";
+                break;
+            case 2:
+                message = "Invalid parent cluster\n";
+                break;
+            default:
+                message = "An unknown error occurred\n";
+                break;
+        }
+
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+        argIdx++;
+    }
+}
+
 // execute command from arg1 and arg2
 void execute_command(char args[80][80]) {
     if (strings_equal(args[0], "cd")) {
@@ -299,6 +340,11 @@ void execute_command(char args[80][80]) {
         cat(args[1]);
     } else if (strings_equal(args[0], "ls")) {
         ls(args[1]);
+    } else if (strings_equal(args[0], "mkdir")) {
+        mkdir(args);
+    } else {
+        char* message = "Command not found\n";
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
     }
 }
 
