@@ -81,12 +81,10 @@ void putchar(char c, uint32_t color) {
         } else {
             col++;
         }
-        framebuffer_set_cursor(row, col);
     }
     if (c == '\n') {
             row++;
             col = 0;
-            framebuffer_set_cursor(row, col);
     }
     if (c == '\b') {
         col--;
@@ -95,8 +93,13 @@ void putchar(char c, uint32_t color) {
             col = 80;
         }
         framebuffer_write(row, col, '\0', 15, 0);
-        framebuffer_set_cursor(row, col);
     }
+    if (row == 25) {
+        framebuffer_clear();
+        row = 0;
+        col = 0;
+    }
+    framebuffer_set_cursor(row, col);
 }
 
 void puts(char* str, uint32_t count, uint32_t color) {
@@ -107,6 +110,15 @@ void puts(char* str, uint32_t count, uint32_t color) {
         } else {
             framebuffer_write(row, col, str[i], color, 0);
             col++;
+        }
+        if (row == 25) {
+            framebuffer_clear();
+            row = 0;
+            col = 0;
+        }
+        if (col == 80) {
+            row++;
+            col = 0;
         }
     }
     framebuffer_set_cursor(row, col);
