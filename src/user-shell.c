@@ -300,6 +300,99 @@ void cat(char* arg2) {
     }
 }
 
+// copy file to another destination
+void cp(char* src, char* dest) {
+    uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    uint32_t cluster_number = (low | high);
+
+    // read file from src
+    char file_name[8];
+    char file_ext[3];
+    parse_file(src, file_name, file_ext);
+
+    uint32_t filesize = 0;
+    for (int i = 0; i < 64; i++) {
+        if (strings_equal(current_folder.table[i].name, src)) {
+            filesize = current_folder.table[i].filesize;
+        }
+    }
+
+    char* temp[filesize];
+    struct FAT32DriverRequest src_request = {
+        .buf                   = temp,
+        .name                  = "",
+        .ext                   = "",
+        .parent_cluster_number = cluster_number,
+        .buffer_size           = filesize,
+    };
+    memcpy(src_request.name, file_name, 8);
+    memcpy(src_request.ext, file_ext, 3);
+
+    char* message;
+    uint32_t retcode;
+    syscall(0, (uint32_t) &src_request, (uint32_t) &retcode, 0);
+
+    switch (retcode) {
+        case -1:
+            message = "An unknown error occurred\n";
+            break;
+        case 1:
+            message = "Provided argument is not a file\n";
+            break;
+        case 2:
+            message = "Not enough buffer size\n";
+            break;
+        case 3:
+            message = "File not found\n";
+            break;
+    }
+    
+    if (retcode != 0) {
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+        return;
+    }
+
+    // copy read file to dest
+    cluster_number = 0;
+    for (int i = 0; i < 64; i++) {
+        if (strings_equal(current_folder.table[i].name, dest)) {
+            low = (uint32_t) (current_folder.table[i].cluster_low);
+            high = ((uint32_t) current_folder.table[i].cluster_high) << 16;
+            cluster_number = (low | high);
+        }
+    }
+
+    struct FAT32DriverRequest dest_request = {
+        .buf                   = temp,
+        .name                  = "",
+        .ext                   = "",
+        .parent_cluster_number = cluster_number,
+        .buffer_size           = filesize,
+    };
+    memcpy(dest_request.name, file_name, 8);
+    memcpy(dest_request.ext, file_ext, 3);
+
+    syscall(2, (uint32_t) &dest_request, (uint32_t) &retcode, 0);
+
+    switch (retcode) {
+        case -1:
+            message = "An unknown error occurred\n";
+            break;
+        case 0:
+            message = "File successfully copied\n";
+            break;
+        case 1:
+            message = "File/folder with the same name + ext already exists\n";
+            break;
+        case 2:
+            message = "Invalid parent folder\n";
+            break;
+    }
+    
+    syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+}
+
 // list file in a directory
 void ls(char* arg2) {
     syscall(6, (uint32_t) arg2, (uint32_t) strlen(arg2), 0x4);
@@ -403,6 +496,8 @@ void execute_command(char args[80][80]) {
         ls(args[1]);
     } else if (strings_equal(args[0], "mkdir")) {
         mkdir(args);
+    } else if (strings_equal(args[0], "cp"))  {
+        cp(args[1], args[2]);
     } else {
         char* message = "Command not found\n";
         syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
