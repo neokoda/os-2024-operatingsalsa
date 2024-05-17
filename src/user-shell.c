@@ -313,7 +313,7 @@ void cp(char* src, char* dest) {
 
     uint32_t filesize = 0;
     for (int i = 0; i < 64; i++) {
-        if (strings_equal(current_folder.table[i].name, src)) {
+        if (memcmp(current_folder.table[i].name, file_name, 8) == 0 && memcmp(current_folder.table[i].ext, file_ext, 3) == 0) {
             filesize = current_folder.table[i].filesize;
         }
     }
@@ -354,26 +354,46 @@ void cp(char* src, char* dest) {
     }
 
     // copy read file to dest
-    cluster_number = 0;
+    char dest_name[8];
+    char dest_ext[3];
+    parse_file(dest, dest_name, dest_ext);
+
+    bool found = false;
+    cluster_number = (low | high);
     for (int i = 0; i < 64; i++) {
         if (strings_equal(current_folder.table[i].name, dest)) {
             low = (uint32_t) (current_folder.table[i].cluster_low);
             high = ((uint32_t) current_folder.table[i].cluster_high) << 16;
             cluster_number = (low | high);
+            found = true;
         }
     }
 
-    struct FAT32DriverRequest dest_request = {
-        .buf                   = temp,
-        .name                  = "",
-        .ext                   = "",
-        .parent_cluster_number = cluster_number,
-        .buffer_size           = filesize,
-    };
-    memcpy(dest_request.name, file_name, 8);
-    memcpy(dest_request.ext, file_ext, 3);
+    if (found) {
+        struct FAT32DriverRequest dest_request = {
+            .buf                   = temp,
+            .name                  = "",
+            .ext                   = "",
+            .parent_cluster_number = cluster_number,
+            .buffer_size           = filesize,
+        };
+        memcpy(dest_request.name, file_name, 8);
+        memcpy(dest_request.ext, file_ext, 3);
 
-    syscall(2, (uint32_t) &dest_request, (uint32_t) &retcode, 0);
+        syscall(2, (uint32_t) &dest_request, (uint32_t) &retcode, 0);
+    } else {
+        struct FAT32DriverRequest dest_request = {
+            .buf                   = temp,
+            .name                  = "",
+            .ext                   = "",
+            .parent_cluster_number = cluster_number,
+            .buffer_size           = filesize,
+        };
+        memcpy(dest_request.name, dest_name, 8);
+        memcpy(dest_request.ext, dest_ext, 3);
+
+        syscall(2, (uint32_t) &dest_request, (uint32_t) &retcode, 0);
+    }
 
     switch (retcode) {
         case -1:
