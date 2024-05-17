@@ -100,26 +100,75 @@ void update_cwd_contents() {
 }
 
 // parse name and extension from argument file
-void parse_file(char* file, char* name, char* ext) {
-    memset(name, 0, 8);
-    memset(ext, 0, 3);
+void addPadding(char *str, int idx1, int idx2) {
+    for (int i = idx1; i < idx2; i++)
+        str[i] = '\0';
+}
 
-    int dot_idx = -1;
-    for (int i = 0; i < strlen(file); i++) {
-        if (file[i] == '.') {
-            dot_idx = i;
-            break;
-        }
+int parseNameAndExt(char *filename, char *name, char *ext) {
+    int i = 0;
+    while (i < 8 && filename[i] != '.' && filename[i] != '\0'){
+        name[i] = filename[i];
+        i++;
+    }
+    addPadding(name, i, 8);
+
+    if (filename[i] == '\0') {
+        addPadding(ext, 0, 3);
+        return 0;
     }
 
-    if (dot_idx != -1) {
-        memcpy(name, file, dot_idx);
+    if (filename[i] != '.')
+        return 1;
+    
+    int j;
+    for (j = i + 1; j <= i + 3; j++){
+        ext[j-i-1] = filename[j];
+    }
+    addPadding(ext, j - i - 1, 3);
 
-        for (int i = dot_idx + 1; i < strlen(file); i++) {
-            ext[i - (dot_idx + 1)] = file[i];
-        } 
-    } else {
-        memcpy(name, file, strlen(file));
+    if (filename[j] != '\0')
+        return 1;
+
+    return 0;
+}
+
+void rmHelper(char* deletedName, char* ext, uint32_t parent_cluster_number, uint32_t deleted_cluster_number){
+    uint32_t retcode;
+    struct ClusterBuffer cl;
+    struct FAT32DriverRequest request = {
+        .buf = &cl,
+        .name = "\0\0\0\0\0\0\0",
+        .ext = "\0\0",
+        .buffer_size = 0,
+        .parent_cluster_number = parent_cluster_number
+    };
+    memcpy(request.name, deletedName, 8);
+    memcpy(request.ext, ext, 3);
+    // delete, file will immediately deleted
+    syscall(3, (uint32_t)&request, (uint32_t)&retcode, 0);
+
+    if (retcode == 2) {
+        // cant immediately delete folder, need to remove child first 
+        struct FAT32DirectoryTable target_table;
+        request.buf = &target_table;
+        request.buffer_size = 2048;
+        // read
+        syscall(1, (uint32_t)&request, (uint32_t)&retcode, 0);
+        
+        for (int i = 1; i < 64; i++) {
+            // remove all child recursively
+            if (target_table.table[i].user_attribute == UATTR_NOT_EMPTY) {
+                uint32_t child_cluster_number = target_table.table[i].cluster_low | (target_table.table[i].cluster_high << 16);
+                rmHelper(target_table.table[i].name, target_table.table[i].ext, deleted_cluster_number, child_cluster_number);
+            }
+        }
+
+        // delete the folder itself
+        memcpy(request.name, deletedName, 8);
+        memcpy(request.ext, ext, 3);
+        request.parent_cluster_number = parent_cluster_number;
+        syscall(3, (uint32_t)&request, (uint32_t)&retcode, 0);
     }
 }
 
@@ -309,7 +358,7 @@ void cp(char* src, char* dest) {
     // read file from src
     char file_name[8];
     char file_ext[3];
-    parse_file(src, file_name, file_ext);
+    parseNameAndExt(src, file_name, file_ext);
 
     uint32_t filesize = 0;
     for (int i = 0; i < 64; i++) {
@@ -356,7 +405,7 @@ void cp(char* src, char* dest) {
     // copy read file to dest
     char dest_name[8];
     char dest_ext[3];
-    parse_file(dest, dest_name, dest_ext);
+    parseNameAndExt(dest, dest_name, dest_ext);
 
     bool found = false;
     cluster_number = (low | high);
@@ -414,8 +463,7 @@ void cp(char* src, char* dest) {
 }
 
 // list file in a directory
-void ls(char* arg2) {
-    syscall(6, (uint32_t) arg2, (uint32_t) strlen(arg2), 0x4);
+void ls() {
     char * foldername = current_folder.table->name;
 
     // initiate a request, do syscall
@@ -453,15 +501,355 @@ void ls(char* arg2) {
     } else {
         // iterate through each entry in directory table
         for (int i = 2; i < 64; i++){
-            char * name = table.table[i].name;
-
-            if (table.table[i].name[0] == 0x00){
+            char name[8];
+            memcpy(name, table.table[i].name, 8);
+            // if entry is empty, skip
+            if (name[0] == 0x00){
                 continue;
             }
-
             syscall(6, (uint32_t) name, (uint32_t) strlen(name), 0xF);
+            if (table.table[i].ext[0] != 0x00){
+                char * extension = table.table[i].ext;
+                syscall(6, (uint32_t) ".", (uint32_t) 1, 0xF);
+                syscall(6, (uint32_t) extension, (uint32_t) 3, 0xF);
+            }
             syscall(6, (uint32_t) "\n", (uint32_t) 1, 0xF);
         }
+    }
+}
+
+void cat(char* arg2) {
+    // Initialize the current cluster number to the cluster of the current directory
+    uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    uint32_t current_cluster_number = (low | high);
+
+    char* message;
+    struct ClusterBuffer cl[8];
+    // Create the request to find the file
+    struct FAT32DriverRequest request = {
+        .buf                   = &cl,
+        .parent_cluster_number = current_cluster_number,
+        .buffer_size           = 2048,
+    };
+
+    // Extract the filename and extension from the provided argument
+    int filenamelen = 0;
+    for (int i = 0; i < strlen(arg2); i++) {
+        if (arg2[i] == '.') {
+            request.ext[0] = arg2[i + 1];
+            request.ext[1] = arg2[i + 2];
+            request.ext[2] = arg2[i + 3];
+            break;
+        } else {
+            filenamelen++;
+        }
+    }
+
+    memcpy(request.name, (void*) arg2, filenamelen);
+
+    // Attempt to find the file
+    int retcode;
+    syscall(0, (uint32_t)&request, (uint32_t)&retcode, 0);
+
+    // Handle errors
+    switch (retcode) {
+        case -1:
+            message = "An unknown error occurred\n";
+            break;
+        case 1:
+            message = "Provided argument is not a file\n";
+            break;
+        case 2:
+            message = "Not enough buffer\n";
+            break;
+        case 3:
+            message = "File not found in this directory\n";
+            break;
+    }
+
+    if (retcode != 0) {
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+    } else {
+        // If the file is found, read its content
+        struct ClusterBuffer cl[8];
+
+        struct FAT32DriverRequest readRequest = {
+            .buf = &cl,
+            .parent_cluster_number = current_cluster_number,
+            .buffer_size = 2048,
+        };
+
+        memcpy(readRequest.name, request.name, 8);
+        memcpy(readRequest.ext, request.ext, 3);
+
+        // Read the file content
+        int retCode = 0;
+        syscall(0, (uint32_t) &readRequest, (uint32_t) &retCode, 0);
+
+        if (retCode == 0) {
+            int bufLen = 0;
+            while (cl->buf[bufLen] != '\0') {
+                bufLen++;
+            }
+
+            syscall(6, (uint32_t) cl->buf, bufLen, 0x07);
+            syscall(6, (uint32_t) "\n", (uint32_t) 1, 0x07);
+        } else {
+            switch (retCode) {
+                case 1:
+                    message = "Not a file.\n";
+                    break;
+                case 2:
+                    message = "Not enough buffer.\n";
+                    break;
+                case 3:
+                    message = "No such file.\n";
+                    break;
+                default:
+                    message = "Unknown error.\n";
+                    break;
+            }
+            syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+            syscall(6, (uint32_t) "\n", (uint32_t) 1, 0x4);
+        }
+    }
+}
+
+// copy file to another destination
+void cp(char* src, char* dest) {
+    uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    uint32_t cluster_number = (low | high);
+
+    // read file from src
+    char file_name[8];
+    char file_ext[3];
+    parseNameAndExt(src, file_name, file_ext);
+
+    uint32_t filesize = 0;
+    for (int i = 0; i < 64; i++) {
+        if (memcmp(current_folder.table[i].name, file_name, 8) == 0 && memcmp(current_folder.table[i].ext, file_ext, 3) == 0) {
+            filesize = current_folder.table[i].filesize;
+        }
+    }
+
+    char* temp[filesize];
+    struct FAT32DriverRequest src_request = {
+        .buf                   = temp,
+        .name                  = "",
+        .ext                   = "",
+        .parent_cluster_number = cluster_number,
+        .buffer_size           = filesize,
+    };
+    memcpy(src_request.name, file_name, 8);
+    memcpy(src_request.ext, file_ext, 3);
+
+    char* message;
+    uint32_t retcode;
+    syscall(0, (uint32_t) &src_request, (uint32_t) &retcode, 0);
+
+    switch (retcode) {
+        case -1:
+            message = "An unknown error occurred\n";
+            break;
+        case 1:
+            message = "Provided argument is not a file\n";
+            break;
+        case 2:
+            message = "Not enough buffer size\n";
+            break;
+        case 3:
+            message = "File not found\n";
+            break;
+    }
+    
+    if (retcode != 0) {
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+        return;
+    }
+
+    // copy read file to dest
+    char dest_name[8];
+    char dest_ext[3];
+    parseNameAndExt(dest, dest_name, dest_ext);
+
+    bool found = false;
+    cluster_number = (low | high);
+    for (int i = 0; i < 64; i++) {
+        if (strings_equal(current_folder.table[i].name, dest)) {
+            low = (uint32_t) (current_folder.table[i].cluster_low);
+            high = ((uint32_t) current_folder.table[i].cluster_high) << 16;
+            cluster_number = (low | high);
+            found = true;
+        }
+    }
+
+    if (found) {
+        struct FAT32DriverRequest dest_request = {
+            .buf                   = temp,
+            .name                  = "",
+            .ext                   = "",
+            .parent_cluster_number = cluster_number,
+            .buffer_size           = filesize,
+        };
+        memcpy(dest_request.name, file_name, 8);
+        memcpy(dest_request.ext, file_ext, 3);
+
+        syscall(2, (uint32_t) &dest_request, (uint32_t) &retcode, 0);
+    } else {
+        struct FAT32DriverRequest dest_request = {
+            .buf                   = temp,
+            .name                  = "",
+            .ext                   = "",
+            .parent_cluster_number = cluster_number,
+            .buffer_size           = filesize,
+        };
+        memcpy(dest_request.name, dest_name, 8);
+        memcpy(dest_request.ext, dest_ext, 3);
+
+        syscall(2, (uint32_t) &dest_request, (uint32_t) &retcode, 0);
+    }
+
+    switch (retcode) {
+        case -1:
+            message = "An unknown error occurred\n";
+            break;
+        case 0:
+            message = "File successfully copied\n";
+            break;
+        case 1:
+            message = "File/folder with the same name + ext already exists\n";
+            break;
+        case 2:
+            message = "Invalid parent folder\n";
+            break;
+    }
+    
+    syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+}
+
+// list file in a directory
+void ls() {
+    char * foldername = current_folder.table->name;
+
+    // initiate a request, do syscall
+    uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    uint32_t current_cluster_number = (low | high);
+    
+    struct FAT32DirectoryTable table = {};
+    struct FAT32DriverRequest request = {
+        .buf                   = &table,
+        .parent_cluster_number = current_cluster_number,
+        .buffer_size           = 2048,
+    };
+    memcpy(request.name, foldername, 8);
+
+    char* message;
+    uint32_t retcode;
+    // syscall to read directory
+    syscall(1, (uint32_t) &request, (uint32_t) &retcode, 0);
+
+    switch (retcode) {
+        case -1:
+            message = "An unknown error occurred\n";
+            break;
+        case 1:
+            message = "Provided argument is not a folder\n";
+            break;
+        case 2:
+            message = "Folder not found\n";
+            break;
+    }
+
+    if (retcode != 0) {
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+    } else {
+        // iterate through each entry in directory table
+        for (int i = 2; i < 64; i++){
+            char name[8];
+            memcpy(name, table.table[i].name, 8);
+            // if entry is empty, skip
+            if (name[0] == 0x00){
+                continue;
+            }
+            syscall(6, (uint32_t) name, (uint32_t) strlen(name), 0xF);
+            if (table.table[i].ext[0] != 0x00){
+                char * extension = table.table[i].ext;
+                syscall(6, (uint32_t) ".", (uint32_t) 1, 0xF);
+                syscall(6, (uint32_t) extension, (uint32_t) 3, 0xF);
+            }
+            syscall(6, (uint32_t) "\n", (uint32_t) 1, 0xF);
+        }
+    }
+}
+
+// remove file or folder
+void rm(char args[80][80]){
+    int arg_idx = 1; // starting idx of arguments
+    if (strings_equal(args[1], "-r")){
+        arg_idx = 2; //is recursive
+    }
+
+    char* message;
+    // handle invalid rm command
+    if ((arg_idx == 1 && args[1][0] == '\0') || (arg_idx == 2 && args[2][0] == '\0')){
+        message = "usage: rm [-r] file ...\n";
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+        return;
+    }
+
+    // initiate a request
+    uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
+    uint32_t current_cluster_number = (low | high);
+    uint32_t retcode;
+    
+    struct FAT32DirectoryTable table = {};
+    struct FAT32DriverRequest request = {
+        .buf                   = &table,
+        .parent_cluster_number = current_cluster_number,
+        .buffer_size           = sizeof(struct FAT32DirectoryTable),
+    };
+
+    // iterate through every file/folder to be removed
+    for (int i = arg_idx; args[i][0] != '\0' ; i++){
+        char filename[9];
+        char ext[4];
+        if (parseNameAndExt(args[i], filename, ext)){
+            message = "filename or extension too long\n";
+            syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+            return;
+        }
+
+        // check existence of file/folder
+        memcpy(request.name, filename, 8);
+        memcpy(request.ext, ext, 3);
+        syscall(1, (uint32_t)&request, (uint32_t)&retcode, 0);
+
+        if (retcode == 0 && arg_idx == 1){
+            // -r not specified in args
+            message = ": is a directory (usage: rm -r folder ...)\n";
+            syscall(6, (uint32_t) filename, (uint32_t) strlen(filename), 0x4);
+            syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+            continue;
+        }
+        else if (retcode == 2){
+            // the specified file/folder is not found within current directory
+            message = ": No such file or directory\n";
+
+            syscall(6, (uint32_t) args[i], (uint32_t) strlen(args[i]), 0x4);
+            syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+            continue;
+        }
+        uint32_t child_cluster_number;
+        // if (memcmp(table.table[i].ext, ext, 3) == 0  && memcmp(table.table[i].name, filename, 8) == 0 && table.table[i].name[0] != 0x00) {
+        //     child_cluster_number = (table.table[i].cluster_high << 16) | table.table[i].cluster_low;
+        // }
+        child_cluster_number = table.table[i].cluster_low | (table.table[i].cluster_high << 16);
+        // child_cluster_number = (table.table[i].cluster_high << 16) | table.table[i].cluster_low;
+        rmHelper(filename, ext, current_cluster_number, child_cluster_number);
     }
 }
 
@@ -518,6 +906,8 @@ void execute_command(char args[80][80]) {
         mkdir(args);
     } else if (strings_equal(args[0], "cp"))  {
         cp(args[1], args[2]);
+    } else if (strings_equal(args[0], "rm")) {
+        rm(args);
     } else {
         char* message = "Command not found\n";
         syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
@@ -548,6 +938,10 @@ int main(void) {
 
     char command[80];
     char args[80][80];
+
+    for (int i = 0; i < 80 ;i++){
+        memset(args[i], 0, 80);
+    }
 
     syscall(7, 0, 0, 0);
     while (true) {
