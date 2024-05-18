@@ -254,4 +254,8 @@ int8_t write(struct FAT32DriverRequest request);
  */
 int8_t delete(struct FAT32DriverRequest request);
 
+
+// updates a directory table, Error code: 0 success - 1 not a folder - -1 unknown
+int8_t update_directory_table(struct FAT32DriverRequest request);
+
 #endif

@@ -307,3 +307,19 @@ int8_t delete(struct FAT32DriverRequest request) {
     }
     return 1;
 }
+
+int8_t update_directory_table(struct FAT32DriverRequest request) {
+    if (!is_valid_parent_cluster(request.parent_cluster_number)) {
+        return -1;
+    }
+
+    struct FAT32DirectoryTable parent_folder;
+    read_clusters(parent_folder.table, request.parent_cluster_number, 1);
+    if (parent_folder.table[0].attribute != ATTR_SUBDIRECTORY) {
+        return 1;
+    }
+
+
+    write_clusters(request.buf, request.parent_cluster_number, 1);
+    return 0;
+}

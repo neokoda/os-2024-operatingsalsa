@@ -166,5 +166,11 @@ void syscall(struct InterruptFrame frame) {
         case 7: 
             keyboard_state_activate();
             break;
-    }
+        case 8:
+            *((uint32_t*) frame.cpu.general.ecx) = update_directory_table
+            (
+                *(struct FAT32DriverRequest*) frame.cpu.general.ebx
+            );    
+            break;
+        }
 }
