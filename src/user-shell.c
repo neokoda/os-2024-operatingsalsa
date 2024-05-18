@@ -7,6 +7,8 @@ static struct FAT32DirectoryTable current_folder;
 // displays current working directory, initially /root/ 
 char cwd[80] = "/root/";
 
+void execute_command(char args[80][80]);
+
 void syscall(uint32_t eax, uint32_t ebx, uint32_t ecx, uint32_t edx) {
     __asm__ volatile("mov %0, %%ebx" : /* <Empty> */ : "r"(ebx));
     __asm__ volatile("mov %0, %%ecx" : /* <Empty> */ : "r"(ecx));
@@ -367,9 +369,9 @@ void cp(char* src, char* dest) {
         }
     }
 
-    char* temp[filesize];
+    struct ClusterBuffer cl[filesize];
     struct FAT32DriverRequest src_request = {
-        .buf                   = temp,
+        .buf                   = &cl,
         .name                  = "",
         .ext                   = "",
         .parent_cluster_number = cluster_number,
@@ -420,7 +422,7 @@ void cp(char* src, char* dest) {
 
     if (found) {
         struct FAT32DriverRequest dest_request = {
-            .buf                   = temp,
+            .buf                   = &cl,
             .name                  = "",
             .ext                   = "",
             .parent_cluster_number = cluster_number,
@@ -432,7 +434,7 @@ void cp(char* src, char* dest) {
         syscall(2, (uint32_t) &dest_request, (uint32_t) &retcode, 0);
     } else {
         struct FAT32DriverRequest dest_request = {
-            .buf                   = temp,
+            .buf                   = &cl,
             .name                  = "",
             .ext                   = "",
             .parent_cluster_number = cluster_number,
@@ -730,6 +732,121 @@ void mv_folder(char* src, char* dest) {
     syscall(8, (uint32_t) &update_src_cluster_number_request, (uint32_t) &retcode, 0);
 }
 
+int lastIndex(char args[80][80]) {
+    int i = 0;
+    while (args[i][0] != '\0') {
+        i++;
+    }
+    return i - 1;
+}
+
+void mv (char args[80][80]) {
+    uint32_t low = (uint32_t)(current_folder.table[0].cluster_low);
+    uint32_t high = ((uint32_t)current_folder.table[0].cluster_high) << 16;
+    uint32_t current_cluster_number = (low | high);
+
+    struct FAT32DirectoryTable table_buf = {0};
+    struct FAT32DriverRequest request = {
+        .buf = &table_buf,
+        .name = "\0\0\0\0\0\0\0",
+        .ext = "\0\0\0",
+        .parent_cluster_number = current_cluster_number,
+        .buffer_size = sizeof(struct FAT32DirectoryEntry)
+    };
+    uint32_t retcode;
+    char* message;
+
+    if (lastIndex(args) < 2) {
+        syscall(6, (uint32_t) "Not enough arguments\n", (uint32_t) strlen("Not enough arguments\n"), 0x4);
+        return;
+    } else {
+        memcpy(request.name, args[lastIndex(args)], strlen(args[lastIndex(args)]));
+        syscall(1, (uint32_t)&request, (uint32_t)&retcode, 0);
+
+        switch (retcode) {
+            case -1:
+                message = "An unknown error occurred\n";
+                break;
+            case 1:
+                message = "Provided argument is not a folder\n";
+                break;
+            case 2:
+                message = "Folder not found\n";
+                break;
+        }
+
+        if (retcode != 0) {
+            syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+            return;
+        } else {
+            // Checking if all files are found
+            for (int i = 1; i < lastIndex(args); i++) {
+                char file_name[8];
+                char file_ext[3];
+                parseNameAndExt(args[i], file_name, file_ext);
+                memcpy(request.name, file_name, 8);
+                memcpy(request.ext, file_ext, 3);
+                syscall(1, (uint32_t) &request, (uint32_t) &retcode, 0);
+
+                if (retcode == 2) {
+                    message = "File/Folder not found\n";
+                    syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+                    return;
+                }                    
+            }
+
+            // Starts moving
+            for (int i = 1; i < lastIndex(args); i++) {
+                char file_name[8];
+                char file_ext[3];
+                parseNameAndExt(args[i], file_name, file_ext);
+                memcpy(request.name, file_name, 8);
+                memcpy(request.ext, file_ext, 3);
+                syscall(1, (uint32_t) &request, (uint32_t) &retcode, 0);
+
+                if (retcode == 2) {
+                    message = "File/Folder not found\n";
+                    syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+                    continue;
+                }
+
+                char rmCommand[80][80];
+                if (retcode == 0) { // Is a folder
+                    memcpy(rmCommand[0], "rm", 2);
+                    memcpy(rmCommand[1], "-r", 2);
+                    memcpy(rmCommand[2], args[i], strlen(args[i]));
+                    
+                    mv_folder(args[i], args[lastIndex(args)]);
+                    return;
+                } else {
+                    memcpy(rmCommand[0], "rm", 2);
+                    memcpy(rmCommand[1], args[i], strlen(args[i]));
+                    char cpCommand[80][80];
+                    memcpy(cpCommand[0], "cp", 2);
+                    memcpy(cpCommand[1], args[i], strlen(args[i]));
+                    memcpy(cpCommand[2], args[lastIndex(args)], strlen(args[lastIndex(args)]));
+                    syscall(6, (uint32_t) cpCommand[0], (uint32_t) strlen(cpCommand[0]), 0x4);
+                    syscall(6, (uint32_t) " ", (uint32_t) 1, 0x4);
+                    syscall(6, (uint32_t) cpCommand[1], (uint32_t) strlen(cpCommand[1]), 0x4);
+                    syscall(6, (uint32_t) " ", (uint32_t) 1, 0x4);
+                    syscall(6, (uint32_t) cpCommand[2], (uint32_t) strlen(cpCommand[2]), 0x4);
+                    syscall(6, (uint32_t) "\n", (uint32_t) 1, 0x4);
+                    execute_command(cpCommand);
+                }
+
+                syscall(6, (uint32_t) rmCommand[0], (uint32_t) strlen(rmCommand[0]), 0x4);
+                syscall(6, (uint32_t) " ", (uint32_t) 1, 0x4);
+                syscall(6, (uint32_t) rmCommand[1], (uint32_t) strlen(rmCommand[1]), 0x4);
+                syscall(6, (uint32_t) " ", (uint32_t) 1, 0x4);
+                syscall(6, (uint32_t) rmCommand[2], (uint32_t) strlen(rmCommand[2]), 0x4);
+                syscall(6, (uint32_t) "\n", (uint32_t) 1, 0x4);
+                execute_command(rmCommand);
+            }
+        }
+
+    }
+}
+
 // execute command from arg1 and arg2
 void execute_command(char args[80][80]) {
     if (strings_equal(args[0], "cd")) {
@@ -745,7 +862,7 @@ void execute_command(char args[80][80]) {
     } else if (strings_equal(args[0], "rm")) {
         rm(args);
     } else if (strings_equal(args[0], "mv"))  {
-        mv_folder(args[1], args[2]);
+        mv(args);
     } else {
         char* message = "Command not found\n";
         syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
