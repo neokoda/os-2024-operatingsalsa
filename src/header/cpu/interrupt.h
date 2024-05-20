@@ -74,8 +74,8 @@ struct CPURegister {
         uint32_t esi;
     } __attribute__((packed)) index;
     struct {
-        uint32_t esp;
         uint32_t ebp;
+        uint32_t esp;
     } __attribute__((packed)) stack;
     struct {
         uint32_t ebx;
@@ -90,6 +90,7 @@ struct CPURegister {
         uint32_t ds;
     } __attribute__((packed)) segment;
 } __attribute__((packed));
+
 
 /**
  * InterruptStack, data pushed by CPU when interrupt / exception is raised.
