@@ -255,7 +255,7 @@ void cd(char* arg2) {
 
 void cat(char* arg2) {
     if (strlen(arg2) == 0) {
-        syscall(6, (uint32_t)"Missing destination file or folder operand", strlen("Missing destination file or folder operand"), 0x4);
+        syscall(6, (uint32_t)"Missing destination file", strlen("Missing destination file"), 0x4);
         syscall(6, (uint32_t)"\n", 1, 0x4);
         return;
     }
@@ -290,17 +290,17 @@ void cat(char* arg2) {
     syscall(0, (uint32_t)&request, (uint32_t)&retcode, 0);
 
     switch (retcode) {
-        case -1:
-            message = "An unknown error occurred\n";
-            break;
         case 1:
-            message = "Provided argument is not a file\n";
+            message = "Not a file\n";
             break;
         case 2:
             message = "Not enough buffer\n";
             break;
         case 3:
             message = "File not found in this directory\n";
+            break;
+        default:
+            message = "Unknown error.\n";
             break;
     }
 
@@ -338,7 +338,7 @@ void cat(char* arg2) {
                     message = "Not enough buffer.\n";
                     break;
                 case 3:
-                    message = "No such file.\n";
+                    message = "File not found in this directory\n";
                     break;
                 default:
                     message = "Unknown error.\n";
@@ -880,7 +880,7 @@ void DFSfind(uint32_t clusterNumber, char* parentName, char* parentExt, char* se
             if (dirtable.table[i].user_attribute == UATTR_NOT_EMPTY) {
                 uint32_t subClusterNumber = (dirtable.table[i].cluster_high << 16) | dirtable.table[i].cluster_low;
 
-                if (dirtable.table[i].attribute == ATTR_SUBDIRECTORY) { // current entry is a folder
+                if (dirtable.table[i].attribute == ATTR_SUBDIRECTORY) { 
                     if (memcmp(dirtable.table[i].name, searchName, (uint32_t)strlen(searchName)) == 0) {
                         getFullPath(clusterNumber, parentName, result);
                         concat(result, "/", result);
@@ -892,13 +892,15 @@ void DFSfind(uint32_t clusterNumber, char* parentName, char* parentExt, char* se
                     if (!visitedNew[i - 1]) {
                         DFSfind(subClusterNumber, dirtable.table[i].name, dirtable.table[i].ext, searchName, i, visitedNew, result);
                     }
-                } else {  // Check if the name matches
+                } else { 
                     if (memcmp(dirtable.table[i].name, searchName, 8) == 0) {
                         getFullPath(clusterNumber, parentName, result);
                         concat(result, "/", result);
                         concat(result, searchName, result);
-                        concat(result, ".", result);
-                        concat(result, dirtable.table[i].ext, result);
+                        if (strlen(dirtable.table[i].ext) != 0) {
+                            concat(result, ".", result);
+                            concat(result, dirtable.table[i].ext, result);
+                        }
                         syscall(6, (uint32_t)result, (uint32_t)strlen(result), 0x07);
                         syscall(6, (uint32_t)"\n", 1, 0x07);
                         return;
@@ -907,6 +909,19 @@ void DFSfind(uint32_t clusterNumber, char* parentName, char* parentExt, char* se
                 }
             }
         }
+    } else {
+        char* message;
+        switch (retcode) {
+                case 2:
+                    message = "Folder not found.\n";
+                    break;
+                default:
+                    message = "Unknown error.\n";
+                    break;
+            }
+        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+        syscall(6, (uint32_t) "\n", (uint32_t) 1, 0x4);
+        return;
     }
 }
 
@@ -935,10 +950,8 @@ void find(char* args2) {
     };
     memcpy(request.name, parentName, strlen(parentName));
 
-
     int32_t retcode;
     syscall(1, (uint32_t)&request, (uint32_t)&retcode, 0);
-
 
     if (retcode == 0) {
         for (int i = 2; i < 64; i++) {

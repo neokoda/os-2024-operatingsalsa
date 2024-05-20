@@ -94,10 +94,9 @@ void clear(void *pointer, size_t n) {
     }
 }
 
-void concat(const char* char1, const char* char2) {
+void concat(const char* char1, const char* char2, char* charconcat) {
     int len1 = strlen(char1);
     int len2 = strlen(char2);
-    char charconcat[len1 + len2 + 1];
 
     for (int i = 0; i < len1; i++) {
         charconcat[i] = char1[i];
@@ -110,6 +109,4 @@ void concat(const char* char1, const char* char2) {
     }
 
     charconcat[len1 + len2 + 1] = '\0';
-
-    return charconcat;
 }
