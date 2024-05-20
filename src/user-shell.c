@@ -640,7 +640,6 @@ void mv_folder(char* src, char* dest) {
             target_low = (uint32_t) (current_folder.table[i].cluster_low);
             target_high = ((uint32_t) current_folder.table[i].cluster_high) << 16;
             target_cluster_number = (target_low | target_high);    
-            break;
         }
         if (memcmp(current_folder.table[i].name, src, 8) == 0) {
             memset(&current_folder.table[i], 0, 32);
