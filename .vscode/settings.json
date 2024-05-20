@@ -14,7 +14,8 @@
         "keyboard.h": "c",
         "stddef.h": "c",
         "fat32.h": "c",
-        "disk.h": "c"
+        "disk.h": "c",
+        "process.h": "c"
     },
     "C_Cpp.default.compilerPath": "/usr/bin/gcc",
 }
