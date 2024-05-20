@@ -28,6 +28,7 @@ Mama Mba Kapka terkejut melihat kami kembali dengan selamat. Namun, kali ini, di
 Meskipun misteri tentang dunia lain dan kejadian aneh yang terjadi masih belum terpecahkan, kami belajar untuk menerima bahwa beberapa hal mungkin akan tetap menjadi misteri. Yang penting, kami belajar untuk menghargai setiap momen kebahagiaan yang kami miliki, di dunia mana pun kami berada. Dan untuk saat ini, kami memilih untuk menikmati waktu kami di GAMEZONE bersama-sama, tanpa memikirkan apa yang mungkin terjadi di masa depan.
 
 ## Overview
+![](![](https://github.com/Your_Repository_Name/Your_GIF_Name.gif))
 <p align="center">
 いらっしゃいませ Userーさん
 </p>
