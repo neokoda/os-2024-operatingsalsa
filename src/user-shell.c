@@ -610,9 +610,6 @@ void mkdir(char args[80][80]) {
         syscall(2, (uint32_t) &child_folder_request, (uint32_t) &retcode, 0);
 
         switch (retcode) {
-            case 0:
-                message = "Folder created\n";
-                break;
             case 1:
                 message = "Folder already exists\n";
                 break;
@@ -624,7 +621,9 @@ void mkdir(char args[80][80]) {
                 break;
         }
 
-        syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+        if (retcode != 0) {
+            syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
+        }
         argIdx++;
     }
 }
@@ -640,6 +639,7 @@ void mv_folder(char* src, char* dest) {
             target_low = (uint32_t) (current_folder.table[i].cluster_low);
             target_high = ((uint32_t) current_folder.table[i].cluster_high) << 16;
             target_cluster_number = (target_low | target_high);    
+            break;
         }
         if (memcmp(current_folder.table[i].name, src, 8) == 0) {
             memset(&current_folder.table[i], 0, 32);
@@ -794,8 +794,9 @@ void mv (char args[80][80]) {
                 }                    
             }
 
+            int p = lastIndex(args);
             // Starts moving
-            for (int i = 1; i < lastIndex(args); i++) {
+            for (int i = 1; i < p; i++) {
                 char file_name[8];
                 char file_ext[3];
                 parseNameAndExt(args[i], file_name, file_ext);
@@ -816,7 +817,6 @@ void mv (char args[80][80]) {
                     memcpy(rmCommand[2], args[i], strlen(args[i]));
                     
                     mv_folder(args[i], args[lastIndex(args)]);
-                    return;
                 } else {
                     memcpy(rmCommand[0], "rm", 2);
                     memcpy(rmCommand[1], args[i], strlen(args[i]));
@@ -824,22 +824,10 @@ void mv (char args[80][80]) {
                     memcpy(cpCommand[0], "cp", 2);
                     memcpy(cpCommand[1], args[i], strlen(args[i]));
                     memcpy(cpCommand[2], args[lastIndex(args)], strlen(args[lastIndex(args)]));
-                    syscall(6, (uint32_t) cpCommand[0], (uint32_t) strlen(cpCommand[0]), 0x4);
-                    syscall(6, (uint32_t) " ", (uint32_t) 1, 0x4);
-                    syscall(6, (uint32_t) cpCommand[1], (uint32_t) strlen(cpCommand[1]), 0x4);
-                    syscall(6, (uint32_t) " ", (uint32_t) 1, 0x4);
-                    syscall(6, (uint32_t) cpCommand[2], (uint32_t) strlen(cpCommand[2]), 0x4);
                     syscall(6, (uint32_t) "\n", (uint32_t) 1, 0x4);
                     execute_command(cpCommand);
+                    execute_command(rmCommand);
                 }
-
-                syscall(6, (uint32_t) rmCommand[0], (uint32_t) strlen(rmCommand[0]), 0x4);
-                syscall(6, (uint32_t) " ", (uint32_t) 1, 0x4);
-                syscall(6, (uint32_t) rmCommand[1], (uint32_t) strlen(rmCommand[1]), 0x4);
-                syscall(6, (uint32_t) " ", (uint32_t) 1, 0x4);
-                syscall(6, (uint32_t) rmCommand[2], (uint32_t) strlen(rmCommand[2]), 0x4);
-                syscall(6, (uint32_t) "\n", (uint32_t) 1, 0x4);
-                execute_command(rmCommand);
             }
         }
 
