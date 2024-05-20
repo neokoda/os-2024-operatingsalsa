@@ -254,21 +254,24 @@ void cd(char* arg2) {
 }
 
 void cat(char* arg2) {
-    // Initialize the current cluster number to the cluster of the current directory
+    if (strlen(arg2) == 0) {
+        syscall(6, (uint32_t)"Missing destination file or folder operand", strlen("Missing destination file or folder operand"), 0x4);
+        syscall(6, (uint32_t)"\n", 1, 0x4);
+        return;
+    }
+ 
     uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
     uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
     uint32_t current_cluster_number = (low | high);
 
     char* message;
     struct ClusterBuffer cl[8];
-    // Create the request to find the file
     struct FAT32DriverRequest request = {
         .buf                   = &cl,
         .parent_cluster_number = current_cluster_number,
         .buffer_size           = 2048,
     };
 
-    // Extract the filename and extension from the provided argument
     int filenamelen = 0;
     for (int i = 0; i < strlen(arg2); i++) {
         if (arg2[i] == '.') {
@@ -283,11 +286,9 @@ void cat(char* arg2) {
 
     memcpy(request.name, (void*) arg2, filenamelen);
 
-    // Attempt to find the file
     int retcode;
     syscall(0, (uint32_t)&request, (uint32_t)&retcode, 0);
 
-    // Handle errors
     switch (retcode) {
         case -1:
             message = "An unknown error occurred\n";
@@ -306,7 +307,6 @@ void cat(char* arg2) {
     if (retcode != 0) {
         syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
     } else {
-        // If the file is found, read its content
         struct ClusterBuffer cl[8];
 
         struct FAT32DriverRequest readRequest = {
@@ -318,7 +318,6 @@ void cat(char* arg2) {
         memcpy(readRequest.name, request.name, 8);
         memcpy(readRequest.ext, request.ext, 3);
 
-        // Read the file content
         int retCode = 0;
         syscall(0, (uint32_t) &readRequest, (uint32_t) &retCode, 0);
 
@@ -351,13 +350,11 @@ void cat(char* arg2) {
     }
 }
 
-// copy file to another destination
 void cp(char* src, char* dest) {
     uint32_t low = (uint32_t) (current_folder.table[0].cluster_low);
     uint32_t high = ((uint32_t) current_folder.table[0].cluster_high) << 16;
     uint32_t cluster_number = (low | high);
 
-    // read file from src
     char file_name[8];
     char file_ext[3];
     parseNameAndExt(src, file_name, file_ext);
@@ -834,6 +831,151 @@ void mv (char args[80][80]) {
     }
 }
 
+void getFullPath(uint32_t clusterAddress, char* folderName, char* result) {
+    int32_t retcode;
+    struct FAT32DirectoryTable searchdirtable;
+    struct FAT32DriverRequest request = {
+        .buf = &searchdirtable,
+        .parent_cluster_number = clusterAddress,
+        .buffer_size = sizeof(struct FAT32DirectoryTable)
+    };
+    memcpy(request.name, folderName, strlen(folderName));
+    request.name[strlen(folderName)] = '\0'; 
+    syscall(1, (uint32_t)&request, (uint32_t)&retcode, 0);
+
+
+    if (retcode == 0) {
+        if (memcmp(searchdirtable.table[0].name, "root\0\0\0", 8) != 0) {  // if the current folder is not root
+            uint32_t parentCluster = (uint32_t)(searchdirtable.table[1].cluster_high << 16) | (uint32_t)searchdirtable.table[1].cluster_low;
+            getFullPath(parentCluster, searchdirtable.table[1].name, result);
+            concat(result, "/", result);
+            concat(result, searchdirtable.table[0].name, result);
+        } else {
+            concat(result, "root", result);
+        }
+    }
+}
+
+void DFSfind(uint32_t clusterNumber, char* parentName, char* parentExt, char* searchName, int v, bool visited[63], char* result) {
+    visited[v-1] = true;
+    bool visitedNew[63];
+    clear(visitedNew, 63);
+
+    struct FAT32DirectoryTable dirtable;
+    struct FAT32DriverRequest request = {
+        .buf = &dirtable,
+        .parent_cluster_number = clusterNumber,
+        .buffer_size = sizeof(struct FAT32DirectoryTable)
+    };
+    memcpy(request.name, parentName, strlen(parentName));
+    memcpy(request.ext, parentExt, strlen(parentExt));
+
+
+    int32_t retcode;
+    syscall(1, (uint32_t)&request, (uint32_t)&retcode, 0);
+
+
+    if (retcode == 0) { 
+        for (size_t i = 2; i < CLUSTER_SIZE / sizeof(struct FAT32DirectoryEntry); i++) {
+            if (dirtable.table[i].user_attribute == UATTR_NOT_EMPTY) {
+                uint32_t subClusterNumber = (dirtable.table[i].cluster_high << 16) | dirtable.table[i].cluster_low;
+
+                if (dirtable.table[i].attribute == ATTR_SUBDIRECTORY) { // current entry is a folder
+                    if (memcmp(dirtable.table[i].name, searchName, (uint32_t)strlen(searchName)) == 0) {
+                        getFullPath(clusterNumber, parentName, result);
+                        concat(result, "/", result);
+                        concat(result, dirtable.table[i].name, result);
+                        syscall(6, (uint32_t)result, (uint32_t)strlen(result), 0x07);
+                        syscall(6, (uint32_t)"\n", 1, 0x07);
+                        return;
+                    }
+                    if (!visitedNew[i - 1]) {
+                        DFSfind(subClusterNumber, dirtable.table[i].name, dirtable.table[i].ext, searchName, i, visitedNew, result);
+                    }
+                } else {  // Check if the name matches
+                    if (memcmp(dirtable.table[i].name, searchName, 8) == 0) {
+                        getFullPath(clusterNumber, parentName, result);
+                        concat(result, "/", result);
+                        concat(result, searchName, result);
+                        concat(result, ".", result);
+                        concat(result, dirtable.table[i].ext, result);
+                        syscall(6, (uint32_t)result, (uint32_t)strlen(result), 0x07);
+                        syscall(6, (uint32_t)"\n", 1, 0x07);
+                        return;
+                    }
+                    visited[i - 1] = true;
+                }
+            }
+        }
+    }
+}
+
+
+void find(char* args2) {
+    if (strlen(args2) == 0) {
+        syscall(6, (uint32_t)"Missing destination file or folder operand", strlen("Missing destination file or folder operand"), 0x4);
+        syscall(6, (uint32_t)"\n", 1, 0x4);
+        return;
+    }
+    uint32_t clusterNumber = ROOT_CLUSTER_NUMBER;
+    char* parentName = "root\0\0\0";
+    char result[2048] = "";  
+    char name[8];
+    char ext[3];
+    parseNameAndExt(args2, name, ext);
+    bool visited[63];
+    clear(visited, 63);
+
+
+    struct FAT32DirectoryTable dirtable;
+    struct FAT32DriverRequest request = {
+        .buf = &dirtable,
+        .parent_cluster_number = clusterNumber,
+        .buffer_size = sizeof(struct FAT32DirectoryTable)
+    };
+    memcpy(request.name, parentName, strlen(parentName));
+
+
+    int32_t retcode;
+    syscall(1, (uint32_t)&request, (uint32_t)&retcode, 0);
+
+
+    if (retcode == 0) {
+        for (int i = 2; i < 64; i++) {
+            if (dirtable.table[i].user_attribute == UATTR_NOT_EMPTY) {
+                if (dirtable.table[i].attribute == ATTR_SUBDIRECTORY) {
+                    if (memcmp(dirtable.table[i].name, name, 8) == 0) {
+                        if (memcmp(dirtable.table[i].name, args2, strlen(args2)) == 0) {
+                            syscall(6, (uint32_t)"root/", strlen("root/"), 0x07);
+                            syscall(6, (uint32_t)dirtable.table[i].name, (uint32_t)strlen(dirtable.table[i].name), 0x07);
+                            syscall(6, (uint32_t)"\n", 1, 0x07);
+                            return;
+                        }
+                    }
+                    if (!visited[i - 1]) {
+                        DFSfind(((uint32_t)(dirtable.table[i].cluster_high << 16) | (uint32_t)dirtable.table[i].cluster_low), dirtable.table[i].name, dirtable.table[i].ext, args2, i, visited, result);
+                    }
+                } else {
+                    if (memcmp(dirtable.table[i].name, name, 8) == 0) {
+                        getFullPath(clusterNumber, parentName, result);
+                        concat(result, "/", result);
+                        concat(result, name, result);
+                        if (strlen(ext) != 0) {
+                            concat(result, ".", result);
+                            concat(result, ext, result);
+                        }
+                        syscall(6, (uint32_t)result, (uint32_t)strlen(result), 0x07);
+                        syscall(6, (uint32_t)"\n", 1, 0x07);
+                        return;
+                    }
+                    visited[i - 1] = true;
+                }
+            }
+        }
+    }
+    syscall(6, (uint32_t)"\n", 1, 0x07);
+}
+
 // execute command from arg1 and arg2
 void execute_command(char args[80][80]) {
     if (strings_equal(args[0], "cd")) {
@@ -850,7 +992,9 @@ void execute_command(char args[80][80]) {
         rm(args);
     } else if (strings_equal(args[0], "mv"))  {
         mv(args);
-    } else {
+    } else if (strings_equal(args[0], "find"))  {
+        find(args[1]);
+    } else {        
         char* message = "Command not found\n";
         syscall(6, (uint32_t) message, (uint32_t) strlen(message), 0x4);
     }

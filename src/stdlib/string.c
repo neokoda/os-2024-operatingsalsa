@@ -86,3 +86,30 @@ void getWord(const char* str, uint16_t wordIdx, char* buf) {
         buf[i] = '\0';
     }
 }
+
+void clear(void *pointer, size_t n) {
+    uint8_t *ptr       = (uint8_t*) pointer;
+    for (size_t i = 0; i < n; i++) {
+        ptr[i] = 0x00;
+    }
+}
+
+void concat(const char* char1, const char* char2) {
+    int len1 = strlen(char1);
+    int len2 = strlen(char2);
+    char charconcat[len1 + len2 + 1];
+
+    for (int i = 0; i < len1; i++) {
+        charconcat[i] = char1[i];
+    }
+    
+    charconcat[len1] = '/';
+    
+    for (int i = 0; i < len2; i++) {
+        charconcat[len1 + 1 + i] = char2[i];
+    }
+
+    charconcat[len1 + len2 + 1] = '\0';
+
+    return charconcat;
+}

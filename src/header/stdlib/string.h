@@ -62,4 +62,8 @@ void *memmove(void *dest, const void *src, size_t n);
 */
 int strlen(const char *str);
 
+void concat(const char* char1, const char* char2, char* charconcat);
+
+void clear(void *pointer, size_t n);
+
 #endif
